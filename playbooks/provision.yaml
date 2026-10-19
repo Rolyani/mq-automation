@@ -1,0 +1,70 @@
+- name: Provision MQ VM on local KVM
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vm_name: mq01
+    vm_memory: 4096
+    vm_vcpus: 2
+    vm_disk_gb: 30
+    image_dir: /home/libvirt/images # move from default /var/lib/... on root drive
+    base_image: "{{ image_dir }}/alma9-base.qcow2"
+    base_image_url: https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+    ssh_pubkey: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+    virsh: virsh -c qemu:///system
+  tasks:
+    - name: Create the image directory
+      ansible.builtin.file:
+        path: "{{ image_dir }}"
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Download AlmaLinux 9 cloud image
+      ansible.builtin.get_url:
+        url: "{{ base_image_url }}"
+        dest: "{{ base_image }}"
+        mode: "0644"
+      become: true
+
+    - name: Check whether the VM already exists
+      ansible.builtin.command: "{{ virsh }} dominfo {{ vm_name }}"
+      register: vm_check
+      changed_when: false
+      failed_when: false
+
+    - name: Create VM (cloud-init injects SSH key)
+      ansible.builtin.command: >
+        virt-install --connect qemu:///system
+        --name {{ vm_name }}
+        --memory {{ vm_memory }} --vcpus {{ vm_vcpus }}
+        --disk path={{ image_dir }}/{{ vm_name }}.qcow2,size={{ vm_disk_gb }},backing_store={{ base_image }}
+        --osinfo almalinux9
+        --import
+        --network network=default
+        --cloud-init clouduser-ssh-key={{ ssh_pubkey }}
+        --noautoconsole
+      when: vm_check.rc != 0
+      changed_when: true
+
+    - name: Wait for the VM to get an IP
+      ansible.builtin.shell: >
+        set -o pipefail &&
+        {{ virsh }} domifaddr {{ vm_name }} | awk '/ipv4/ {split($4,a,"/"); print a[1]}'
+      args:
+        executable: /bin/bash
+      register: vm_ip
+      until: vm_ip.stdout | length > 0
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Wait for SSH
+      ansible.builtin.wait_for:
+        host: "{{ vm_ip.stdout }}"
+        port: 22
+        timeout: 300
+
+    - name: Show IP
+      ansible.builtin.debug:
+        msg: "{{ vm_name }} is up at {{ vm_ip.stdout }}, put this in inventory/hosts.yaml"
