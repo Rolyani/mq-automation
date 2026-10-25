@@ -1,0 +1,4 @@
+* Managed by Ansible - do not edit by hand
+{% for q in mq_local_queues %}
+DEFINE QLOCAL('{{ q.name }}') MAXDEPTH({{ q.maxdepth }}) REPLACE
+{% endfor %}

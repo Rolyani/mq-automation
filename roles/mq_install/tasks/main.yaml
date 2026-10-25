@@ -1,0 +1,47 @@
+- name: Install Prerequisites
+  ansible.builtin.dnf:
+    name: [acl, tar] # acl so Ansible can become unprivilidged mqm user
+    state: present
+  become: true
+
+- name: Check if MQ is already installed
+  ansible.builtin.stat:
+    path: "{{ mq_install_dir }}/bin/dspmqver"
+  register: mq_bin
+
+- name: Install MQ
+  when: not mq_bin.stat.exists
+  become: true
+  block:
+    - name: Copy and extract MQ tarball
+      ansible.builtin.unarchive:
+        src: "{{ playbook_dir }}/../files/{{ mq_tarball }}"
+        dest: /tmp
+
+    - name: Accept licence
+      ansible.builtin.command: /tmp/MQServer/mqlicense.sh -text_only -accept
+      changed_when: true
+
+    - name: Install MQ RPMs
+      ansible.builtin.shell: >
+        rpm -ivh
+        MQSeriesRuntime-*.rpm
+        MQSeriesGSKit-*.rpm
+        MQSeriesServer-*.rpm
+        MQSeriesSamples-*.rpm
+      args:
+        chdir: /tmp/MQServer
+      changed_when: true
+
+    - name: Set Primary Installation
+      ansible.builtin.command: "{{ mq_install_dir }}/bin/setmqinst -i -p {{mq_install_dir }}"
+      changed_when: true
+
+- name: Report MQ Version
+  ansible.builtin.command: "{{ mq_install_dir }}/bin/dspmqver -f 2"
+  register: mq_ver
+  changed_when: false
+
+- name: Show Version
+  ansible.builtin.debug:
+    var: mq_ver.stdout

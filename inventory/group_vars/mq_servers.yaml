@@ -1,0 +1,11 @@
+mq_tarball: 9.4.0.10-IBM-MQ-Advanced-for-Developers-LinuxX64.tar.gz
+mq_install_dir: /opt/mqm
+mq_qmgr: QM1
+
+mq_local_queues:
+  - name: PAYMENTS.IN
+    maxdepth: 5000
+  - name: PAYMENTS.OUT
+    maxdepth: 5000
+  - name: DEV.TEST
+    maxdepth: 100

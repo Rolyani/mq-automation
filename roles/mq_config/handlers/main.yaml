@@ -1,0 +1,7 @@
+- name: Apply MQSC
+  ansible.builtin.shell: >
+    {{ mq_install_dir }}/bin/runmqsc {{ mq_qmgr }}
+    < /var/mqm/{{ mq_qmgr }}.mqsc
+  changed_when: true
+  become: true
+  become_user: mqm

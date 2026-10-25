@@ -1,0 +1,5 @@
+- name: Install and Configure IBM MQ
+  hosts: mq_servers
+  roles:
+    - mq_install
+  #  - mq_config
